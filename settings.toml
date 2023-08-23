@@ -1,0 +1,9 @@
+[source]
+type = "baserow"
+
+[baserow]
+root_table_id = 579
+link_table_mappings = [
+  ["Clinician", 582],
+  ["Findings", 581],
+]

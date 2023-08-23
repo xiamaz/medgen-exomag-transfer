@@ -1,0 +1,9 @@
+loguru
+typer
+# python-baserow-simple
+attrs
+requests
+pandas
+openpyxl
+dynaconf
+python-dateutil
