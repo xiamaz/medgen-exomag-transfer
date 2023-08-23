@@ -1,6 +1,10 @@
 [source]
 type = "baserow"
 
+[filter]
+field = "Case Status"
+valid_keys = ["Solved", "Unsolved", "VUS"]
+
 [baserow]
 root_table_id = 579
 link_table_mappings = [

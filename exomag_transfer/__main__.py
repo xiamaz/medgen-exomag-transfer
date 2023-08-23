@@ -150,6 +150,10 @@ def transform(entry, mappings):
     return result_data
 
 
+def check_filter(entry, filter_key, filter_values):
+    return entry[filter_key] in filter_values
+
+
 def main(output_file: Path):
 
     if settings.source.type == "baserow":
@@ -159,8 +163,9 @@ def main(output_file: Path):
 
     result_data = []
     for entry in data.values():
-        result_entry = transform(entry, OUTPUTS_EXOMAG)
-        result_data.append(result_entry)
+        if check_filter(entry, settings.filter.field, settings.filter.valid_keys):
+            result_entry = transform(entry, OUTPUTS_EXOMAG)
+            result_data.append(result_entry)
 
     table = pd.DataFrame.from_records(result_data)
     table.to_excel(output_file, index=False)
