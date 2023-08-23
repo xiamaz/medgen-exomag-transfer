@@ -88,7 +88,7 @@ OUTPUTS_EXOMAG = [
     Mapping("GestaltMatcher ID", mapper=constant("")),
     Mapping("prenatal", mapper=constant("")),
     Mapping("DoB", mapper=constant("")),
-    Mapping("age in months", ["Birthdate", "Datum Einschluss"], mapper=age),
+    Mapping("age in months", ["Birthdate", "Datum Labor"], mapper=age),
     Mapping("age in years", mapper=constant("")),
     Mapping("sex", ["Gender"]),
     Mapping("referring clinician", ["Clinician"], mapper=one(one(fmt_data("{Title} {Firstname} {Lastname} ({Email})")))),
