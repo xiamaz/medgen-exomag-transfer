@@ -1,9 +1,13 @@
 [source]
 type = "baserow"
 
-[filter]
+[[filter]]
 field = "Case Status"
 valid_keys = ["Solved", "Unsolved", "VUS"]
+
+[[filter]]
+field = "Datenverarbeitung"
+valid_keys = [true,]
 
 [baserow]
 root_table_id = 579

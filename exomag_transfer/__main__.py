@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Callable
 import datetime
@@ -71,6 +72,42 @@ def fmt_join(sep):
     return fun
 
 
+def select(key):
+
+    def wrap(func):
+        def fun(data):
+            value = data.get(key, "")
+            return func(value)
+        return fun
+
+    return wrap
+
+
+def regex_once(query, group=0):
+    def inner(data):
+        if data:
+            if m := re.search(query, data):
+                return m.group(group)
+        return ""
+    return inner
+
+
+def dict_mapping(maps, default=""):
+    def wrapper(fun):
+        def inner(data):
+            value = maps.get(data, default)
+            return fun(value)
+        return inner
+    return wrapper
+
+
+def clean_hpo(data):
+    hpo_terms = []
+    if data:
+        hpo_terms = re.findall(r"HPO?:\d+", data)
+    return ",".join(hpo_terms)
+
+
 @define
 class Mapping:
     destination: str
@@ -92,12 +129,12 @@ OUTPUTS_EXOMAG = [
     Mapping("age in years", mapper=constant("")),
     Mapping("sex", ["Gender"]),
     Mapping("referring clinician", ["Clinician"], mapper=one(one(fmt_data("{Title} {Firstname} {Lastname} ({Email})")))),
-    Mapping("Start der Diagnostik", ["Datum Einschluss"]),
+    Mapping("Start der Diagnostik", ["Datum Labor"]),
     Mapping("Befunddatum", ["Datum Befund"]),
-    Mapping("HPO terms", ["HPO Terms"]),
+    Mapping("HPO terms", ["HPO Terms"], mapper=one(clean_hpo)),
     Mapping("bisherige Diagnostik", ["Bisherige Diagnostik"], mapper=one(fmt_join(", "))),
     Mapping("single/duo/trio", ["Analysezahl"]),
-    Mapping("Selektivvertrag", ["Vertrag"]),
+    Mapping("Selektivvertrag", ["Vertrag"], mapper=one(dict_mapping({"Selektivvertrag": "ja", "Kostenübernahme": "beantragt"}, "nein")(nop))),
     Mapping("disease category", mapper=constant("")),
     Mapping("case solved/unsolved/unclear", ["Case Status"]),
     Mapping("changes in management/therapy after test", mapper=constant("")),
@@ -112,10 +149,10 @@ OUTPUTS_EXOMAG = [
     Mapping("pmid", mapper=constant("")),
     Mapping("ISCN", mapper=constant("")),
     Mapping("HGVS_gDNA", mapper=constant("")),
-    Mapping("HGVS_cDNA", mapper=constant("")),
-    Mapping("HGVS_protein", mapper=constant("")),
-    Mapping("ACMG class", mapper=constant("")),
-    Mapping("zygosity", mapper=constant("")),
+    Mapping("HGVS_cDNA", ["Findings"], mapper=one(concat("/")(select("Mutation")(regex_once(r"c.[ATCG>+\-_\dA-Za-z]+"))))),
+    Mapping("HGVS_protein", ["Findings"], mapper=one(concat("/")(select("Mutation")(regex_once(r"p.[ATCG>+\-_\dA-Za-z*\(\)]+"))))),
+    Mapping("ACMG class", ["Findings"], mapper=one(concat("/")(select("ACMG Classification")(nop)))),
+    Mapping("zygosity", ["Findings"], mapper=one(concat("/")(select("Zygosity")(nop)))),
     Mapping("de novo", mapper=constant("")),
     Mapping("mode of inheritance", mapper=constant("")),
     Mapping("ClinVar Accession ID", mapper=constant("")),
@@ -150,8 +187,8 @@ def transform(entry, mappings):
     return result_data
 
 
-def check_filter(entry, filter_key, filter_values):
-    return entry[filter_key] in filter_values
+def check_filter(entry, filters):
+    return all(entry[f.field] in f.valid_keys for f in filters)
 
 
 def main(output_file: Path):
@@ -163,7 +200,7 @@ def main(output_file: Path):
 
     result_data = []
     for entry in data.values():
-        if check_filter(entry, settings.filter.field, settings.filter.valid_keys):
+        if check_filter(entry, settings.filter):
             result_entry = transform(entry, OUTPUTS_EXOMAG)
             result_data.append(result_entry)
 
