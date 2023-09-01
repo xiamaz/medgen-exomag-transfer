@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 import datetime
 import typer
 import python_baserow_simple
@@ -63,7 +63,7 @@ def age(data):
         age_years = age_delta.years
         age_months = age_delta.years * 12 + age_delta.months
 
-    return age_years
+    return age_months
 
 
 def fmt_join(sep):
@@ -92,10 +92,13 @@ def regex_once(query, group=0):
     return inner
 
 
-def dict_mapping(maps, default=""):
+def dict_mapping(maps, default: Optional[str]=""):
     def wrapper(fun):
         def inner(data):
-            value = maps.get(data, default)
+            d = default
+            if default is None:
+                d = data
+            value = maps.get(data, d)
             return fun(value)
         return inner
     return wrapper
@@ -106,6 +109,13 @@ def clean_hpo(data):
     if data:
         hpo_terms = re.findall(r"HPO?:\d+", data)
     return ",".join(hpo_terms)
+
+
+def fmt_date(data):
+    if not data:
+        return ""
+    dt = datetime.date.fromisoformat(str(data))
+    return dt.strftime("%d.%m.%Y")
 
 
 @define
@@ -121,7 +131,7 @@ class Mapping:
 
 OUTPUTS_EXOMAG = [
     Mapping("internal case ID", ["Medgen ID"]),
-    Mapping("sequencing lab", mapper=constant("LaborBerlin")),
+    Mapping("sequencing lab", mapper=constant("Berlin")),
     Mapping("GestaltMatcher ID", mapper=constant("")),
     Mapping("prenatal", mapper=constant("")),
     Mapping("DoB", mapper=constant("")),
@@ -129,14 +139,14 @@ OUTPUTS_EXOMAG = [
     Mapping("age in years", mapper=constant("")),
     Mapping("sex", ["Gender"]),
     Mapping("referring clinician", ["Clinician"], mapper=one(one(fmt_data("{Title} {Firstname} {Lastname} ({Email})")))),
-    Mapping("Start der Diagnostik", ["Datum Labor"]),
-    Mapping("Befunddatum", ["Datum Befund"]),
+    Mapping("Start der Diagnostik", ["Datum Labor"], mapper=one(fmt_date)),
+    Mapping("Befunddatum", ["Datum Befund"], mapper=one(fmt_date)),
     Mapping("HPO terms", ["HPO Terms"], mapper=one(clean_hpo)),
     Mapping("bisherige Diagnostik", ["Bisherige Diagnostik"], mapper=one(fmt_join(", "))),
     Mapping("single/duo/trio", ["Analysezahl"]),
     Mapping("Selektivvertrag", ["Vertrag"], mapper=one(dict_mapping({"Selektivvertrag": "ja", "Kostenübernahme": "beantragt"}, "nein")(nop))),
     Mapping("disease category", mapper=constant("")),
-    Mapping("case solved/unsolved/unclear", ["Case Status"]),
+    Mapping("case solved/unsolved/unclear", ["Case Status"], mapper=one(dict_mapping({"VUS": "unclear"}, default=None)(nop))),
     Mapping("changes in management/therapy after test", mapper=constant("")),
     Mapping("relevant findings for research", mapper=constant("")),
     Mapping("Test conducted", ["Falltyp"]),
@@ -144,16 +154,20 @@ OUTPUTS_EXOMAG = [
     Mapping("AutoCasc", mapper=constant("")),
     Mapping("autozygosity", mapper=constant("")),
     Mapping("gene", ["Findings"], mapper=one(concat("/")(fmt_data("{Genename}")))),
-    Mapping("variant_solves_case", mapper=constant("")),
+    Mapping("variant_solves_case", ["Findings"],
+            mapper=one(concat("/")(select("ResultType")(dict_mapping({"Main": "primary", "Incidental": "incidental", "Research": "candidate"})(nop))))
+            ),
     Mapping("if new disease gene, level of evidence", mapper=constant("")),
     Mapping("pmid", mapper=constant("")),
     Mapping("ISCN", mapper=constant("")),
     Mapping("HGVS_gDNA", mapper=constant("")),
-    Mapping("HGVS_cDNA", ["Findings"], mapper=one(concat("/")(select("Mutation")(regex_once(r"c.[ATCG>+\-_\dA-Za-z]+"))))),
+    Mapping("HGVS_cDNA", ["Findings"], mapper=
+            one(concat("/")(select("Mutation")(regex_once(r"c.[ATCG>+\-_\dA-Za-z]+"))))
+            ),
     Mapping("HGVS_protein", ["Findings"], mapper=one(concat("/")(select("Mutation")(regex_once(r"p.[ATCG>+\-_\dA-Za-z*\(\)]+"))))),
     Mapping("ACMG class", ["Findings"], mapper=one(concat("/")(select("ACMG Classification")(nop)))),
     Mapping("zygosity", ["Findings"], mapper=one(concat("/")(select("Zygosity")(nop)))),
-    Mapping("de novo", mapper=constant("")),
+    Mapping("de novo", ["Findings"], mapper=one(concat("/")(select("de novo/vererbt")(dict_mapping({"de novo": "yes"}, "")(nop))))),
     Mapping("mode of inheritance", mapper=constant("")),
     Mapping("ClinVar Accession ID", mapper=constant("")),
 ]
