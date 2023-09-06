@@ -162,14 +162,21 @@ OUTPUTS_EXOMAG = [
     Mapping("ISCN", mapper=constant("")),
     Mapping("HGVS_gDNA", mapper=constant("")),
     Mapping("HGVS_cDNA", ["Findings"], mapper=
-            one(concat("/")(select("Mutation")(regex_once(r"c.[ATCG>+\-_\dA-Za-z]+"))))
+            one(concat("/")(select("Mutation")(regex_once(r"c.[ATCG>+\-_\dA-Za-z*=?delupinv]+"))))
             ),
-    Mapping("HGVS_protein", ["Findings"], mapper=one(concat("/")(select("Mutation")(regex_once(r"p.[ATCG>+\-_\dA-Za-z*\(\)]+"))))),
+    Mapping("HGVS_protein", ["Findings"], mapper=one(concat("/")(select("Mutation")(regex_once(r"p.[ATCG>+\-_\dA-Za-z*\(\)=?]+"))))),
     Mapping("ACMG class", ["Findings"], mapper=one(concat("/")(select("ACMG Classification")(nop)))),
     Mapping("zygosity", ["Findings"], mapper=one(concat("/")(select("Zygosity")(nop)))),
     Mapping("de novo", ["Findings"], mapper=one(concat("/")(select("de novo/vererbt")(dict_mapping({"de novo": "yes"}, "")(nop))))),
     Mapping("mode of inheritance", mapper=constant("")),
     Mapping("ClinVar Accession ID", mapper=constant("")),
+]
+
+
+OUTPUTS_FETCHER = [
+    Mapping("id", ["Medgen ID"]),
+    Mapping("lbid", ["LB ID"]),
+    Mapping("vid", ["Varfish"]),
 ]
 
 
@@ -202,24 +209,37 @@ def transform(entry, mappings):
 
 
 def check_filter(entry, filters):
-    return all(entry[f.field] in f.valid_keys for f in filters)
+    def check(value, f):
+        if f.not_empty:
+            return bool(value)
+        return value in f.valid_keys
+
+    return all(check(entry[f.field], f) for f in filters)
 
 
-def main(output_file: Path):
+def main(output_file: Path, type: str = "exomag"):
 
     if settings.source.type == "baserow":
         data = get_baserow()
     else:
         raise RuntimeError("Supported data sources are currently: baserow")
 
+    if type == "exomag":
+        output_definitions = OUTPUTS_EXOMAG
+    else:
+        output_definitions = OUTPUTS_FETCHER
+
     result_data = []
     for entry in data.values():
         if check_filter(entry, settings.filter):
-            result_entry = transform(entry, OUTPUTS_EXOMAG)
+            result_entry = transform(entry, output_definitions)
             result_data.append(result_entry)
 
     table = pd.DataFrame.from_records(result_data)
-    table.to_excel(output_file, index=False)
+    if output_file.name.endswith(".xlsx"):
+        table.to_excel(output_file, index=False)
+    else:
+        table.to_csv(output_file, index=False)
 
 
 if __name__ == "__main__":

@@ -3,11 +3,18 @@ type = "baserow"
 
 [[filter]]
 field = "Case Status"
+not_empty = false
 valid_keys = ["Solved", "Unsolved", "VUS"]
 
 [[filter]]
 field = "Datenverarbeitung"
+not_empty = false
 valid_keys = [true,]
+
+[[filter]]
+field = "Datum Befund"
+not_empty = true
+valid_keys = []
 
 [baserow]
 root_table_id = 579
